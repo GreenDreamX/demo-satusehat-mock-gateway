@@ -6,47 +6,42 @@ const app = express();
 const PORT = 8080;
 
 app.use(cors());
+// Menerima JSON standar dan JSON FHIR
 app.use(bodyParser.json({ type: ['application/json', 'application/fhir+json'] }));
 
-let receivedBundles = [];
+let dataMasuk = [];
 
-// Endpoint Terima Data (Simulasi SATUSEHAT)
+// 1. Endpoint Cek Status (Untuk Browser)
+app.get('/', (req, res) => {
+  res.json({
+    status: "ONLINE",
+    message: "MOCK SATUSEHAT SERVER READY",
+    total_data: dataMasuk.length,
+    logs: dataMasuk.slice(-5) // Tampilkan 5 data terakhir
+  });
+});
+
+// 2. Endpoint Terima Data (Simulasi Kiriman dari Puskesmas)
 app.post('/fhir/Bundle', (req, res) => {
-  const bundle = req.body;
-  const timestamp = new Date().toLocaleTimeString();
-  
-  console.log(`\n[${timestamp}] 📡 DATA MASUK DARI EDGE SERVER`);
-  
-  if (bundle.resourceType !== 'Bundle') {
-    return res.status(400).json({ error: "Format salah, bukan FHIR Bundle" });
-  }
+  const payload = req.body;
+  const waktu = new Date().toLocaleTimeString();
 
-  // Coba ambil nama pasien dari payload
-  try {
-      const patient = bundle.entry.find(e => e.resource.resourceType === 'Patient');
-      const name = patient ? patient.resource.name[0].text : "Tanpa Nama";
-      console.log(`✅ Pasien: ${name} | ID: ${bundle.id || 'N/A'}`);
-  } catch (e) {
-      console.log(`⚠️ Data diterima tapi format entry tidak standar`);
-  }
+  console.log(`\n[${waktu}] 📨 Ada kiriman data baru!`);
 
-  receivedBundles.push(bundle);
+  // Simpan ke memori sementara
+  dataMasuk.push({
+    waktu: waktu,
+    isi: payload
+  });
 
-  // Balas 'Sukses' ke Edge
+  // Balas seolah-olah sukses (200 OK)
   res.status(200).json({
     resourceType: "Bundle",
     type: "transaction-response",
-    entry: [{ response: { status: "201 Created" } }]
+    entry: [ { response: { status: "201 Created" } } ]
   });
 });
 
-// Endpoint Cek Status (Buka di Browser)
-app.get('/', (req, res) => {
-  res.json({
-    status: "MOCK SATUSEHAT READY",
-    total_data_terima: receivedBundles.length,
-    pesan: "Server ini siap menerima sinkronisasi dari Edge"
-  });
+app.listen(PORT, () => {
+  console.log(`🚀 Mock Server jalan di port ${PORT}`);
 });
-
-app.listen(PORT, () => console.log(`🚀 Server Mock jalan di port ${PORT}`));
